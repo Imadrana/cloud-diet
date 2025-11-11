@@ -1,0 +1,87 @@
+# Build and runtime artifacts
+bin/
+obj/
+csx/
+.vs/
+edge/
+Publish/
+
+# User / cache files
+*.user
+*.suo
+*.cscfg
+*.Cache
+project.lock.json
+
+/packages/
+TestResults/
+tools/NuGet.exe
+App_Data/
+secrets/
+data/
+.secrets/
+appsettings.json
+local.settings.json
+
+# JS/Node
+node_modules/
+dist/
+
+# Local Python packages
+.python_packages/
+
+# Python environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Python bytecode / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Azurite local emulator
+__blobstorage__/
+__queuestorage__/
+__azurite_db*__.json
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Python tooling caches
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.mypy_cache/
+.pytype/
+.ruff_cache/
+pip-wheel-metadata/
+
+# Env & secrets (extra safety)
+.env.*
+*.env
+*.pem
+*.key
+*.cer
+*.pfx
+
+# Azure Functions / deployment artifacts
+functionappartifact.squashfs
+*.zip
+*.PublishSettings
+publishprofile.*.xml
+.swa/
+.azure/
+
+# Logs
+*.log
+logs/
