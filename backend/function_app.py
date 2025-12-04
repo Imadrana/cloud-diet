@@ -400,14 +400,22 @@ def get_recipes(req: func.HttpRequest) -> func.HttpResponse:
         diet = req.params.get("dietType")
         page = int(req.params.get("page", 1))
         size = int(req.params.get("pageSize", 10))
+        keyword = req.params.get("q")
+
+        # diet filter
         if diet:
             diet_norm = diet.strip().lower()
             if diet_norm not in ("all", "all diet types"):
                 df = df[df["diet_type"] == diet_norm]
 
+        # keyword search in recipe name
+        if keyword:
+            kw = keyword.strip().lower()
+            df = df[df["recipe"].str.lower().str.contains(kw, na=False)]
+
+        total = int(df.shape[0])
         start = (page - 1) * size
         end = start + size
-        total = int(df.shape[0])
         cols = ["recipe", "diet_type", "calories", "protein", "carbs", "fat"]
         items = df[cols].iloc[start:end].to_dict(orient="records")
         result = {
@@ -422,3 +430,4 @@ def get_recipes(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(json.dumps(result), mimetype="application/json")
     except Exception as e:
         return func.HttpResponse(str(e), status_code=500)
+

@@ -1,26 +1,34 @@
 import axios from "axios";
 
-// Hard-coded Azure Function base URL
-const api = axios.create({
-  baseURL: "https://nutrition-insights-fnc-01.azurewebsites.net/api",
+const client = axios.create({
+  baseURL: import.meta.env.VITE_FUNCTION_BASE,
 });
 
-// Nutritional insights
-export const getNutritionalInsights = (dietType) =>
-  api
-    .get("/getNutritionalInsights", { params: { dietType } })
-    .then((r) => r.data);
+// Attach JWT if present
+client.interceptors.request.use((config) => {
+  const token = localStorage.getItem("authToken");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
-// Clusters
-export const getClusters = (k = 3) =>
-  api
-    .get("/getClusters", { params: { k } })
-    .then((r) => r.data);
+// Old helper functions used by your dashboard
+export function getNutritionalInsights(dietType) {
+  const params = {};
+  if (dietType) params.dietType = dietType;
+  return client.get("/getNutritionalInsights", { params }).then((r) => r.data);
+}
 
-// Recipes with pagination
-export const getRecipes = (dietType, page = 1, pageSize = 10) =>
-  api
-    .get("/getRecipes", { params: { dietType, page, pageSize } })
-    .then((r) => r.data);
+export function getClusters(k = 3) {
+  return client.get("/getClusters", { params: { k } }).then((r) => r.data);
+}
 
-export default api;
+export function getRecipes(dietType, page = 1, pageSize = 1000, q) {
+  const params = { page, pageSize };
+  if (dietType) params.dietType = dietType;
+  if (q) params.q = q;
+  return client.get("/getRecipes", { params }).then((r) => r.data);
+}
+
+export default client;
