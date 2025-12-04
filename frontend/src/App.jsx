@@ -1,189 +1,280 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { registerUser, loginUser, fetchCurrentUser } from "./api/auth";
 import Dashboard from "./Dashboard";
 
-function AuthForm({ mode, onSwitchMode, onAuthSuccess }) {
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [loadingUser, setLoadingUser] = useState(true);
+  const [mode, setMode] = useState("login"); // "login" or "register"
+  const [authError, setAuthError] = useState("");
+
+  useEffect(() => {
+    const token = localStorage.getItem("authToken");
+    if (!token) {
+      setLoadingUser(false);
+      return;
+    }
+    (async () => {
+      try {
+        const res = await fetchCurrentUser();
+        setUser(res.data);
+      } catch {
+        localStorage.removeItem("authToken");
+      } finally {
+        setLoadingUser(false);
+      }
+    })();
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("authToken");
+    setUser(null);
+  };
+
+  const handleAuthSuccess = (data) => {
+    if (data?.token) {
+      localStorage.setItem("authToken", data.token);
+    }
+    if (data?.user) {
+      setUser(data.user);
+    } else if (data?.email) {
+      setUser({ email: data.email, name: data.name || data.email });
+    }
+  };
+
+  if (loadingUser) {
+    return <div style={{ padding: "2rem" }}>Loading...</div>;
+  }
+
+  if (user) {
+    return <Dashboard user={user} onLogout={handleLogout} />;
+  }
+
+  return (
+    <AuthScreen
+      mode={mode}
+      onModeChange={setMode}
+      onAuthSuccess={handleAuthSuccess}
+      authError={authError}
+      setAuthError={setAuthError}
+    />
+  );
+}
+
+function AuthScreen({ mode, onModeChange, onAuthSuccess, authError, setAuthError }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setError("");
-
+  const handleSubmit = async (e) => {
+    e.preventDefault(); // IMPORTANT: stop browser default GET /login
+    setAuthError("");
+    setSubmitting(true);
     try {
       let resp;
-      if (mode === "register") {
-        resp = await registerUser({ name, email, password });
-      } else {
+      if (mode === "login") {
         resp = await loginUser({ email, password });
+      } else {
+        resp = await registerUser({ name, email, password });
       }
-      const { token, user } = resp.data;
-      localStorage.setItem("authToken", token);
-      localStorage.setItem("authUser", JSON.stringify(user));
-      onAuthSuccess(user);
+      onAuthSuccess(resp.data);
     } catch (err) {
-      setError(err.response?.data || err.message || "Something went wrong");
+      setAuthError(
+        err.response?.data || err.message || "Request failed, please try again."
+      );
+    } finally {
+      setSubmitting(false);
     }
-  }
+  };
 
   return (
     <div
       style={{
-        maxWidth: 420,
-        margin: "4rem auto",
-        padding: "2rem",
-        border: "1px solid #e5e7eb",
-        borderRadius: 12,
-        boxShadow: "0 10px 25px rgba(15,23,42,0.08)",
-        background: "white",
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#f3f4f6",
       }}
     >
-      <h2 style={{ marginBottom: "1.25rem", textAlign: "center" }}>
-        {mode === "login" ? "Login" : "Register"}
-      </h2>
-      {error && (
-        <div style={{ marginBottom: "1rem", color: "red", fontSize: 14 }}>
-          {error}
+      <div
+        style={{
+          width: 420,
+          padding: "2.5rem 2.75rem",
+          borderRadius: 12,
+          background: "white",
+          boxShadow: "0 15px 40px rgba(15,23,42,0.12)",
+        }}
+      >
+        <h1
+          style={{
+            fontSize: 26,
+            fontWeight: 700,
+            textAlign: "center",
+            marginBottom: "0.5rem",
+          }}
+        >
+          {mode === "login" ? "Login" : "Create Account"}
+        </h1>
+        <p
+          style={{
+            fontSize: 14,
+            color: "#6b7280",
+            textAlign: "center",
+            marginBottom: "1.3rem",
+          }}
+        >
+          {mode === "login"
+            ? "Sign in to view the Nutritional Insights Dashboard."
+            : "Register to access the Nutritional Insights Dashboard."}
+        </p>
+
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            marginBottom: "1.2rem",
+            background: "#f3f4f6",
+            padding: 4,
+            borderRadius: 999,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => onModeChange("login")}
+            style={{
+              flex: 1,
+              padding: "0.45rem 0.6rem",
+              borderRadius: 999,
+              border: "none",
+              background: mode === "login" ? "#2563eb" : "transparent",
+              color: mode === "login" ? "white" : "#111827",
+              fontWeight: 600,
+              cursor: "pointer",
+              fontSize: 14,
+            }}
+          >
+            Login
+          </button>
+          <button
+            type="button"
+            onClick={() => onModeChange("register")}
+            style={{
+              flex: 1,
+              padding: "0.45rem 0.6rem",
+              borderRadius: 999,
+              border: "none",
+              background: mode === "register" ? "#2563eb" : "transparent",
+              color: mode === "register" ? "white" : "#111827",
+              fontWeight: 600,
+              cursor: "pointer",
+              fontSize: 14,
+            }}
+          >
+            Register
+          </button>
         </div>
-      )}
-      <form onSubmit={handleSubmit}>
-        {mode === "register" && (
-          <div style={{ marginBottom: "0.75rem" }}>
-            <label style={{ display: "block", marginBottom: 4 }}>Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              style={{ width: "100%", padding: 8 }}
-            />
+
+        {authError && (
+          <div
+            style={{
+              marginBottom: "1rem",
+              color: "#dc2626",
+              fontSize: 14,
+              textAlign: "center",
+            }}
+          >
+            {authError}
           </div>
         )}
-        <div style={{ marginBottom: "0.75rem" }}>
-          <label style={{ display: "block", marginBottom: 4 }}>Email</label>
+
+        <form onSubmit={handleSubmit}>
+          {mode === "register" && (
+            <>
+              <label
+                style={{ fontSize: 14, display: "block", marginBottom: 4 }}
+              >
+                Name
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                style={{
+                  width: "100%",
+                  padding: "0.45rem 0.6rem",
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  marginBottom: "0.9rem",
+                  fontSize: 14,
+                }}
+              />
+            </>
+          )}
+
+          <label style={{ fontSize: 14, display: "block", marginBottom: 4 }}>
+            Email
+          </label>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            style={{ width: "100%", padding: 8 }}
+            style={{
+              width: "100%",
+              padding: "0.45rem 0.6rem",
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              marginBottom: "0.9rem",
+              fontSize: 14,
+            }}
           />
-        </div>
-        <div style={{ marginBottom: "0.75rem" }}>
-          <label style={{ display: "block", marginBottom: 4 }}>Password</label>
+
+          <label style={{ fontSize: 14, display: "block", marginBottom: 4 }}>
+            Password
+          </label>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            style={{ width: "100%", padding: 8 }}
+            style={{
+              width: "100%",
+              padding: "0.45rem 0.6rem",
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              marginBottom: "1.1rem",
+              fontSize: 14,
+            }}
           />
-        </div>
-        <button
-          type="submit"
-          style={{
-            width: "100%",
-            padding: "0.6rem",
-            marginTop: "0.5rem",
-            background: "#2563eb",
-            color: "white",
-            border: "none",
-            borderRadius: 6,
-            cursor: "pointer",
-          }}
-        >
-          {mode === "login" ? "Login" : "Create Account"}
-        </button>
-      </form>
-      <div style={{ marginTop: "1rem", textAlign: "center", fontSize: 14 }}>
-        {mode === "login" ? (
-          <>
-            Don&apos;t have an account?{" "}
-            <button
-              type="button"
-              onClick={() => onSwitchMode("register")}
-              style={{
-                border: "none",
-                background: "none",
-                color: "#2563eb",
-                cursor: "pointer",
-              }}
-            >
-              Register
-            </button>
-          </>
-        ) : (
-          <>
-            Already have an account?{" "}
-            <button
-              type="button"
-              onClick={() => onSwitchMode("login")}
-              style={{
-                border: "none",
-                background: "none",
-                color: "#2563eb",
-                cursor: "pointer",
-              }}
-            >
-              Login
-            </button>
-          </>
-        )}
+
+          <button
+            type="submit"
+            disabled={submitting}
+            style={{
+              width: "100%",
+              padding: "0.55rem 0.75rem",
+              borderRadius: 6,
+              border: "none",
+              background: "#2563eb",
+              color: "white",
+              fontWeight: 600,
+              cursor: submitting ? "wait" : "pointer",
+              fontSize: 15,
+            }}
+          >
+            {submitting
+              ? mode === "login"
+                ? "Logging in..."
+                : "Creating account..."
+              : mode === "login"
+              ? "Login"
+              : "Create Account"}
+          </button>
+        </form>
       </div>
     </div>
   );
 }
-
-function App() {
-  const [mode, setMode] = useState("login");
-  const [user, setUser] = useState(null);
-  const [checking, setChecking] = useState(true);
-
-  useEffect(() => {
-    async function check() {
-      const token = localStorage.getItem("authToken");
-      if (!token) {
-        setChecking(false);
-        return;
-      }
-      try {
-        const resp = await fetchCurrentUser();
-        setUser(resp.data.user);
-        localStorage.setItem("authUser", JSON.stringify(resp.data.user));
-      } catch (e) {
-        localStorage.removeItem("authToken");
-        localStorage.removeItem("authUser");
-      } finally {
-        setChecking(false);
-      }
-    }
-    check();
-  }, []);
-
-  function handleLogout() {
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("authUser");
-    setUser(null);
-    setMode("login");
-  }
-
-  if (checking) {
-    return <p style={{ padding: "2rem" }}>Checking session...</p>;
-  }
-
-  if (!user) {
-    return (
-      <AuthForm
-        mode={mode}
-        onSwitchMode={setMode}
-        onAuthSuccess={(u) => setUser(u)}
-      />
-    );
-  }
-
-  return <Dashboard user={user} onLogout={handleLogout} />;
-}
-
-export default App;
