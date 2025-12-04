@@ -10,11 +10,25 @@ function AuthCard({ mode, onModeChange, onLoginSuccess }) {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const handleGithubLogin = () => {
-    // Azure Static Web Apps GitHub OAuth
+// ---------- GitHub login handler ----------
+const handleGithubLogin = () => {
+  const host = window.location.hostname;
+
+  // On the real Static Web App, use built-in GitHub auth
+  if (host.includes("azurestaticapps.net")) {
     window.location.href =
       "/.auth/login/github?post_login_redirect_uri=/";
-  };
+    return;
+  }
+
+  // When running locally (localhost etc.)
+  alert(
+    "GitHub login only works on the deployed Azure Static Web App. " +
+    "Please use email & password when running locally."
+  );
+};
+// -----------------------------------------
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
