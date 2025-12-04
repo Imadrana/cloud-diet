@@ -1,87 +1,41 @@
 import { useEffect, useState } from "react";
-import { registerUser, loginUser, fetchCurrentUser } from "./api/auth";
+import "./App.css";
 import Dashboard from "./Dashboard";
+import { registerUser, loginUser, fetchCurrentUser } from "./api/auth";
 
-export default function App() {
-  const [user, setUser] = useState(null);
-  const [loadingUser, setLoadingUser] = useState(true);
-  const [mode, setMode] = useState("login"); // "login" or "register"
-  const [authError, setAuthError] = useState("");
-
-  useEffect(() => {
-    const token = localStorage.getItem("authToken");
-    if (!token) {
-      setLoadingUser(false);
-      return;
-    }
-    (async () => {
-      try {
-        const res = await fetchCurrentUser();
-        setUser(res.data);
-      } catch {
-        localStorage.removeItem("authToken");
-      } finally {
-        setLoadingUser(false);
-      }
-    })();
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.removeItem("authToken");
-    setUser(null);
-  };
-
-  const handleAuthSuccess = (data) => {
-    if (data?.token) {
-      localStorage.setItem("authToken", data.token);
-    }
-    if (data?.user) {
-      setUser(data.user);
-    } else if (data?.email) {
-      setUser({ email: data.email, name: data.name || data.email });
-    }
-  };
-
-  if (loadingUser) {
-    return <div style={{ padding: "2rem" }}>Loading...</div>;
-  }
-
-  if (user) {
-    return <Dashboard user={user} onLogout={handleLogout} />;
-  }
-
-  return (
-    <AuthScreen
-      mode={mode}
-      onModeChange={setMode}
-      onAuthSuccess={handleAuthSuccess}
-      authError={authError}
-      setAuthError={setAuthError}
-    />
-  );
-}
-
-function AuthScreen({ mode, onModeChange, onAuthSuccess, authError, setAuthError }) {
+function AuthCard({ mode, onModeChange, onLoginSuccess }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const handleGithubLogin = () => {
+    // Azure Static Web Apps GitHub OAuth
+    window.location.href =
+      "/.auth/login/github?post_login_redirect_uri=/";
+  };
+
   const handleSubmit = async (e) => {
-    e.preventDefault(); // IMPORTANT: stop browser default GET /login
-    setAuthError("");
+    e.preventDefault();
     setSubmitting(true);
+    setError("");
+
     try {
-      let resp;
-      if (mode === "login") {
-        resp = await loginUser({ email, password });
+      if (mode === "register") {
+        const resp = await registerUser({ name, email, password });
+        const data = resp.data || resp;
+        localStorage.setItem("authToken", data.token);
+        onLoginSuccess(data.user);
       } else {
-        resp = await registerUser({ name, email, password });
+        const resp = await loginUser({ email, password });
+        const data = resp.data || resp;
+        localStorage.setItem("authToken", data.token);
+        onLoginSuccess(data.user);
       }
-      onAuthSuccess(resp.data);
     } catch (err) {
-      setAuthError(
-        err.response?.data || err.message || "Request failed, please try again."
+      setError(
+        err.response?.data || err.message || "Something went wrong"
       );
     } finally {
       setSubmitting(false);
@@ -89,192 +43,149 @@ function AuthScreen({ mode, onModeChange, onAuthSuccess, authError, setAuthError
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#f3f4f6",
-      }}
-    >
-      <div
-        style={{
-          width: 420,
-          padding: "2.5rem 2.75rem",
-          borderRadius: 12,
-          background: "white",
-          boxShadow: "0 15px 40px rgba(15,23,42,0.12)",
-        }}
-      >
-        <h1
-          style={{
-            fontSize: 26,
-            fontWeight: 700,
-            textAlign: "center",
-            marginBottom: "0.5rem",
-          }}
-        >
-          {mode === "login" ? "Login" : "Create Account"}
-        </h1>
-        <p
-          style={{
-            fontSize: 14,
-            color: "#6b7280",
-            textAlign: "center",
-            marginBottom: "1.3rem",
-          }}
-        >
-          {mode === "login"
-            ? "Sign in to view the Nutritional Insights Dashboard."
-            : "Register to access the Nutritional Insights Dashboard."}
+    <div className="auth-page">
+      <div className="auth-card">
+        <h1>Login</h1>
+        <p className="auth-subtitle">
+          Sign in to view the Nutritional Insights Dashboard.
         </p>
 
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            marginBottom: "1.2rem",
-            background: "#f3f4f6",
-            padding: 4,
-            borderRadius: 999,
-          }}
-        >
+        <div className="auth-tabs">
           <button
-            type="button"
+            className={mode === "login" ? "tab active" : "tab"}
             onClick={() => onModeChange("login")}
-            style={{
-              flex: 1,
-              padding: "0.45rem 0.6rem",
-              borderRadius: 999,
-              border: "none",
-              background: mode === "login" ? "#2563eb" : "transparent",
-              color: mode === "login" ? "white" : "#111827",
-              fontWeight: 600,
-              cursor: "pointer",
-              fontSize: 14,
-            }}
           >
             Login
           </button>
           <button
-            type="button"
+            className={mode === "register" ? "tab active" : "tab"}
             onClick={() => onModeChange("register")}
-            style={{
-              flex: 1,
-              padding: "0.45rem 0.6rem",
-              borderRadius: 999,
-              border: "none",
-              background: mode === "register" ? "#2563eb" : "transparent",
-              color: mode === "register" ? "white" : "#111827",
-              fontWeight: 600,
-              cursor: "pointer",
-              fontSize: 14,
-            }}
           >
             Register
           </button>
         </div>
 
-        {authError && (
-          <div
-            style={{
-              marginBottom: "1rem",
-              color: "#dc2626",
-              fontSize: 14,
-              textAlign: "center",
-            }}
-          >
-            {authError}
-          </div>
-        )}
+        <button
+          className="oauth-button github"
+          type="button"
+          onClick={handleGithubLogin}
+        >
+          Continue with GitHub
+        </button>
 
-        <form onSubmit={handleSubmit}>
+        <div className="auth-divider">
+          <span>or use email &amp; password</span>
+        </div>
+
+        {error && <div className="auth-error">{error}</div>}
+
+        <form onSubmit={handleSubmit} className="auth-form">
           {mode === "register" && (
-            <>
-              <label
-                style={{ fontSize: 14, display: "block", marginBottom: 4 }}
-              >
-                Name
-              </label>
+            <div className="field">
+              <label>Name</label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                style={{
-                  width: "100%",
-                  padding: "0.45rem 0.6rem",
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  marginBottom: "0.9rem",
-                  fontSize: 14,
-                }}
               />
-            </>
+            </div>
           )}
-
-          <label style={{ fontSize: 14, display: "block", marginBottom: 4 }}>
-            Email
-          </label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            style={{
-              width: "100%",
-              padding: "0.45rem 0.6rem",
-              borderRadius: 6,
-              border: "1px solid #d1d5db",
-              marginBottom: "0.9rem",
-              fontSize: 14,
-            }}
-          />
-
-          <label style={{ fontSize: 14, display: "block", marginBottom: 4 }}>
-            Password
-          </label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            style={{
-              width: "100%",
-              padding: "0.45rem 0.6rem",
-              borderRadius: 6,
-              border: "1px solid #d1d5db",
-              marginBottom: "1.1rem",
-              fontSize: 14,
-            }}
-          />
+          <div className="field">
+            <label>Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div className="field">
+            <label>Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
 
           <button
+            className="primary-btn"
             type="submit"
             disabled={submitting}
-            style={{
-              width: "100%",
-              padding: "0.55rem 0.75rem",
-              borderRadius: 6,
-              border: "none",
-              background: "#2563eb",
-              color: "white",
-              fontWeight: 600,
-              cursor: submitting ? "wait" : "pointer",
-              fontSize: 15,
-            }}
           >
-            {submitting
-              ? mode === "login"
-                ? "Logging in..."
-                : "Creating account..."
-              : mode === "login"
-              ? "Login"
-              : "Create Account"}
+            {mode === "login" ? "Login" : "Create Account"}
           </button>
         </form>
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  const [mode, setMode] = useState("login");
+  const [user, setUser] = useState(null);
+
+  // Bootstrap from our JWT backend and from Static Web Apps OAuth
+  useEffect(() => {
+    async function init() {
+      // 1) Try our own JWT /me
+      try {
+        const resp = await fetchCurrentUser();
+        const data = resp.data || resp;
+        if (data && data.email) {
+          setUser(data);
+          setMode("dashboard");
+          return;
+        }
+      } catch {
+        // ignore
+      }
+
+      // 2) Try Azure Static Web Apps built-in auth (GitHub, etc.)
+      try {
+        const res = await fetch("/.auth/me");
+        if (res.ok) {
+          const info = await res.json();
+          const p = info.clientPrincipal;
+          if (p) {
+            setUser({
+              name: p.userDetails || p.userId,
+              email: p.userId,
+              provider: p.identityProvider,
+            });
+            setMode("dashboard");
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    init();
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("authToken");
+    setUser(null);
+    setMode("login");
+    // Also clear SWA auth if logged in via GitHub
+    window.location.href = "/.auth/logout?post_logout_redirect_uri=/";
+  };
+
+  if (mode === "dashboard" && user) {
+    return <Dashboard user={user} onLogout={handleLogout} />;
+  }
+
+  return (
+    <AuthCard
+      mode={mode}
+      onModeChange={setMode}
+      onLoginSuccess={(u) => {
+        setUser(u);
+        setMode("dashboard");
+      }}
+    />
   );
 }
