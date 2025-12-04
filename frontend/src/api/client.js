@@ -17,7 +17,7 @@ client.interceptors.request.use((config) => {
   return config;
 });
 
-// ----- Data APIs used by Dashboard -----
+// ---------- DATA APIS USED BY DASHBOARD ----------
 
 export function getNutritionalInsights(dietType) {
   const params = {};
