@@ -1,6 +1,7 @@
 import json
 import os
 import io
+import uuid
 import logging
 import datetime as dt
 
@@ -10,6 +11,12 @@ from sklearn.cluster import KMeans
 from azure.cosmos import CosmosClient
 
 from shared.blob_utils import load_dataset
+from shared.auth_utils import (
+    hash_password,
+    verify_password,
+    create_token,
+    decode_token,
+)
 
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
@@ -18,13 +25,16 @@ app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 COSMOS_CONN_STRING = os.getenv("COSMOS_CONN_STRING")
 COSMOS_DB_NAME = os.getenv("COSMOS_DB_NAME", "nutritiondb")
 COSMOS_METRICS_CONTAINER = os.getenv("COSMOS_METRICS_CONTAINER", "metrics")
+COSMOS_USERS_CONTAINER = os.getenv("COSMOS_USERS_CONTAINER", "users")
 
 metrics_container = None
+users_container = None
 if COSMOS_CONN_STRING:
     try:
         cosmos_client = CosmosClient.from_connection_string(COSMOS_CONN_STRING)
         db_client = cosmos_client.get_database_client(COSMOS_DB_NAME)
         metrics_container = db_client.get_container_client(COSMOS_METRICS_CONTAINER)
+        users_container = db_client.get_container_client(COSMOS_USERS_CONTAINER)
     except Exception as e:
         logging.error("Failed to init Cosmos client: %s", e)
 
@@ -212,6 +222,148 @@ def get_nutritional_insights(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(json.dumps(result), mimetype="application/json")
 
     except Exception as e:
+        return func.HttpResponse(str(e), status_code=500)
+
+
+# ---------- AUTH HELPERS ----------
+def get_current_user(req: func.HttpRequest):
+    auth_header = req.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    token = auth_header.split(" ", 1)[1]
+    payload = decode_token(token)
+    return payload
+
+
+# ---------- HTTP: register (email/password) ----------
+@app.route(route="register", methods=["POST"])
+def register(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        if users_container is None:
+            return func.HttpResponse("Users DB not configured", status_code=500)
+
+        try:
+            data = req.get_json()
+        except ValueError:
+            return func.HttpResponse("Invalid JSON", status_code=400)
+
+        email = str(data.get("email", "")).strip().lower()
+        password = str(data.get("password", "")).strip()
+        name = str(data.get("name", "")).strip()
+
+        if not email or not password:
+            return func.HttpResponse(
+                "Email and password are required", status_code=400
+            )
+        if not name:
+            name = email.split("@")[0]
+
+        query = "SELECT TOP 1 * FROM c WHERE c.email = @email"
+        params = [{"name": "@email", "value": email}]
+        existing = list(
+            users_container.query_items(
+                query=query,
+                parameters=params,
+                enable_cross_partition_query=True,
+            )
+        )
+        if existing:
+            return func.HttpResponse(
+                "User already exists", status_code=400
+            )
+
+        user_id = str(uuid.uuid4())
+        user_doc = {
+            "id": user_id,
+            "email": email,
+            "name": name,
+            "passwordHash": hash_password(password),
+            "provider": "local",
+            "createdAt": dt.datetime.utcnow().isoformat() + "Z",
+        }
+        users_container.create_item(user_doc)
+
+        token = create_token({"sub": user_id, "email": email, "name": name})
+
+        result = {
+            "token": token,
+            "user": {"id": user_id, "email": email, "name": name},
+        }
+        return func.HttpResponse(
+            json.dumps(result), mimetype="application/json", status_code=201
+        )
+
+    except Exception as e:
+        logging.error("Register error: %s", e)
+        return func.HttpResponse(str(e), status_code=500)
+
+
+# ---------- HTTP: login (email/password) ----------
+@app.route(route="login", methods=["POST"])
+def login(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        if users_container is None:
+            return func.HttpResponse("Users DB not configured", status_code=500)
+
+        try:
+            data = req.get_json()
+        except ValueError:
+            return func.HttpResponse("Invalid JSON", status_code=400)
+
+        email = str(data.get("email", "")).strip().lower()
+        password = str(data.get("password", "")).strip()
+        if not email or not password:
+            return func.HttpResponse(
+                "Email and password are required", status_code=400
+            )
+
+        query = "SELECT TOP 1 * FROM c WHERE c.email = @email"
+        params = [{"name": "@email", "value": email}]
+        items = list(
+            users_container.query_items(
+                query=query,
+                parameters=params,
+                enable_cross_partition_query=True,
+            )
+        )
+        if not items:
+            return func.HttpResponse("Invalid credentials", status_code=401)
+
+        user_doc = items[0]
+        if not verify_password(password, user_doc.get("passwordHash", "")):
+            return func.HttpResponse("Invalid credentials", status_code=401)
+
+        user_id = user_doc["id"]
+        name = user_doc.get("name", email.split("@")[0])
+
+        token = create_token({"sub": user_id, "email": email, "name": name})
+
+        result = {
+            "token": token,
+            "user": {"id": user_id, "email": email, "name": name},
+        }
+        return func.HttpResponse(
+            json.dumps(result), mimetype="application/json"
+        )
+
+    except Exception as e:
+        logging.error("Login error: %s", e)
+        return func.HttpResponse(str(e), status_code=500)
+
+
+# ---------- HTTP: me (check current user from JWT) ----------
+@app.route(route="me", methods=["GET"])
+def me(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        user = get_current_user(req)
+        if not user:
+            return func.HttpResponse("Unauthorized", status_code=401)
+
+        return func.HttpResponse(
+            json.dumps({"user": user}), mimetype="application/json"
+        )
+    except Exception as e:
+        logging.error("Me error: %s", e)
         return func.HttpResponse(str(e), status_code=500)
 
 

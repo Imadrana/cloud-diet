@@ -3,3 +3,5 @@ azure-storage-blob
 pandas
 scikit-learn
 azure-cosmos
+bcrypt
+PyJWT
