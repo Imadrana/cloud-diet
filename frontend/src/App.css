@@ -40,3 +40,161 @@
 .read-the-docs {
   color: #888;
 }
+
+/* ---------- Auth layout (login/register) ---------- */
+
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f3f4f6;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.auth-card {
+  width: 420px;
+  background: #ffffff;
+  padding: 32px 40px;
+  border-radius: 18px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+  text-align: center;
+}
+
+.auth-card h1 {
+  margin: 0 0 6px;
+  font-size: 28px;
+}
+
+.auth-subtitle {
+  margin: 0 0 24px;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+/* Tabs (Login / Register) */
+.auth-tabs {
+  display: inline-flex;
+  background: #e5e7eb;
+  border-radius: 999px;
+  padding: 3px;
+  margin-bottom: 16px;
+}
+
+.auth-tabs .tab {
+  border: none;
+  outline: none;
+  padding: 6px 18px;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 999px;
+  background: transparent;
+  color: #4b5563;
+}
+
+.auth-tabs .tab.active {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+/* OAuth button */
+.oauth-button.github {
+  width: 100%;
+  border-radius: 999px;
+  border: none;
+  padding: 10px 14px;
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  background: #111827;
+  color: #ffffff;
+}
+
+.oauth-button.github:hover {
+  background: #020617;
+}
+
+/* Divider */
+.auth-divider {
+  margin: 18px 0 10px;
+  font-size: 12px;
+  color: #9ca3af;
+  position: relative;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 35%;
+  height: 1px;
+  background: #e5e7eb;
+}
+
+.auth-divider::before {
+  left: 0;
+}
+
+.auth-divider::after {
+  right: 0;
+}
+
+/* Form & inputs */
+.auth-form {
+  text-align: left;
+  margin-top: 8px;
+}
+
+.auth-form .field {
+  margin-bottom: 14px;
+}
+
+.auth-form label {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 4px;
+  color: #4b5563;
+}
+
+.auth-form input {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  padding: 8px 10px;
+  font-size: 14px;
+  outline: none;
+}
+
+.auth-form input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.25);
+}
+
+/* Primary button */
+.primary-btn {
+  width: 100%;
+  border-radius: 999px;
+  border: none;
+  padding: 10px 14px;
+  margin-top: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.primary-btn:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+/* Error */
+.auth-error {
+  margin-top: 8px;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: #b91c1c;
+}
