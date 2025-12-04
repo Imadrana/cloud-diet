@@ -1,58 +1,80 @@
-import os, io
+import io
+import os
+
 import pandas as pd
 from azure.storage.blob import BlobServiceClient
 
-CONN_STR = os.environ.get("BLOB_CONN_STR")
-CONTAINER = os.environ.get("BLOB_CONTAINER", "diets")
-CSV_NAME = os.environ.get("BLOB_CSV_NAME", "All_Diets_clean.csv")
 
-# Map many possible header spellings to canonical names
-CANON = {
-    "diet_type": ["diet_type","diet type","diet","type","diettype"],
-    "recipe":    ["recipe","name","title","item","recipe_name","recipename"],
-    "protein":   ["protein","protein (g)","proteing","protein_g","prot"],
-    "carbs":     ["carbs","carbohydrates","carbs (g)","carb","carbohydrate_g"],
-    "fat":       ["fat","fat (g)","fats","fat_g"],
-    "calories":  ["calories","kcal","kcals","energy"]
-}
+BLOB_CONN_STR = os.environ["BLOB_CONN_STR"]
+BLOB_CONTAINER = os.environ.get("BLOB_CONTAINER", "datasets")
+BLOB_NAME = os.environ.get("BLOB_NAME", "All_Diets_clean.csv")
 
-def _canonicalize_columns(df: pd.DataFrame) -> pd.DataFrame:
-    # lower map of current columns
-    lower_to_orig = {c.strip().lower(): c for c in df.columns}
-    rename_map = {}
-    for target, variants in CANON.items():
-        for v in variants:
-            if v in lower_to_orig:
-                rename_map[lower_to_orig[v]] = target
-                break
-    df = df.rename(columns=rename_map)
 
-    # ensure required columns exist
-    for req in ["diet_type","recipe","protein","carbs","fat","calories"]:
-        if req not in df.columns:
-            if req in ["protein","carbs","fat","calories"]:
-                df[req] = 0
-            else:
-                df[req] = ""
+def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Try to normalize the original CSV columns into:
+      - diet_type
+      - recipe
+      - cuisine (optional)
+      - protein, carbs, fat, calories
+    This handles variations like 'Protein(g)', 'Protein (g)', etc.
+    """
+    col_map = {}
+    for col in df.columns:
+        key = col.strip().lower().replace(" ", "").replace("(g)", "")
+        if "diet_type" in key:
+            col_map[col] = "diet_type"
+        elif "recipename" in key or key == "recipe":
+            col_map[col] = "recipe"
+        elif "cuisine" in key:
+            col_map[col] = "cuisine"
+        elif key.startswith("protein"):
+            col_map[col] = "protein"
+        elif key.startswith("carbs") or key.startswith("carbohydrate"):
+            col_map[col] = "carbs"
+        elif key.startswith("fat"):
+            col_map[col] = "fat"
+        elif "calories" in key or key == "kcal":
+            col_map[col] = "calories"
 
-    # coerce numerics
-    for num in ["protein","carbs","fat","calories"]:
-        df[num] = pd.to_numeric(df[num], errors="coerce").fillna(0.0)
+    df = df.rename(columns=col_map)
 
-    # compute calories if missing or all zeros
-    if ("calories" not in rename_map.values()) or (df["calories"].sum() == 0):
-        df["calories"] = (4*df["protein"] + 4*df["carbs"] + 9*df["fat"]).round(1)
+    # Ensure required columns exist
+    if "diet_type" not in df.columns:
+        raise ValueError("diet_type column not found in CSV")
+    if "recipe" not in df.columns:
+        df["recipe"] = df["diet_type"] + " recipe"
 
-    # types
-    df["diet_type"] = df["diet_type"].astype(str)
-    df["recipe"] = df["recipe"].astype(str)
+    # Convert numeric columns
+    for col in ["protein", "carbs", "fat", "calories"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # Compute calories if missing
+    if "calories" not in df.columns:
+        df["calories"] = df["protein"] * 4 + df["carbs"] * 4 + df["fat"] * 9
+
+    # Basic cleaning
+    df["diet_type"] = df["diet_type"].astype(str).str.strip().str.lower()
+    df["recipe"] = df["recipe"].astype(str).str.strip()
+
+    df = df.dropna(subset=["protein", "carbs", "fat"])
+
     return df
 
+
 def load_dataset() -> pd.DataFrame:
-    if not CONN_STR:
-        raise RuntimeError("BLOB_CONN_STR is not set")
-    svc = BlobServiceClient.from_connection_string(CONN_STR)
-    blob = svc.get_container_client(CONTAINER).get_blob_client(CSV_NAME)
-    data = blob.download_blob().readall()
-    df = pd.read_csv(io.BytesIO(data))
-    return _canonicalize_columns(df)
+    """
+    Download All_Diets_clean.csv from Azure Blob Storage and
+    return a cleaned DataFrame with normalized columns.
+    """
+    blob_service_client = BlobServiceClient.from_connection_string(BLOB_CONN_STR)
+    blob_client = blob_service_client.get_blob_client(
+        container=BLOB_CONTAINER,
+        blob=BLOB_NAME,
+    )
+
+    stream = blob_client.download_blob().readall()
+    df = pd.read_csv(io.BytesIO(stream))
+    df = _normalize_columns(df)
+    return df

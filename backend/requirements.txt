@@ -2,3 +2,4 @@ azure-functions
 azure-storage-blob
 pandas
 scikit-learn
+azure-cosmos
